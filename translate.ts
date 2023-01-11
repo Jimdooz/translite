@@ -1,11 +1,34 @@
 export type TranslateStructure = {
     [key: string]: string | TranslateStructure,
+} & SpecialTranslateStructure
+
+type SpecialTranslateStructure = {
+    [specialKey: SpecialCase]: {
+        [special: string]: string,
+    }
 }
 
 const parserSettings = {
-    delimiterStart : "{{",
-    delimiterEnd : "}}",
+    delimiterStart: "{",
+    delimiterEnd: "}",
 } as const;
+
+//#region $specialcas$param1_param2_paramN
+type Decompose_<S> = S extends `${infer partLeft}_${infer partRight}` ? partLeft | Decompose_<partRight> : S;
+type ArrayDecompose_<S> = S extends `${infer partLeft}_${infer partRight}` ? [partLeft, ...ArrayDecompose_<partRight>] : [S];
+
+type SpecialCase = `$${string}$${string}`;
+type GetSpecialHead<T> = T extends `$${infer H}$${string}` ? H : never;
+type GetSpecialParams<T> = T extends `$${string}$${infer P}` ? Decompose_<P> : never;
+type ArraySpecialParams<T> = T extends `$${string}$${infer P}` ? ArrayDecompose_<P> : never;
+
+type GetFirstParam<T> = { [K in keyof T]: K extends `${infer partLeft}_${string}` ? partLeft : K extends string ? K : never }[keyof T];
+type GetOtherParam<T> = {
+    [Property in { [K in keyof T]: K extends `${string}_${infer partRight}` ? partRight : '' }[keyof T]]: Property
+};
+
+type GetParamsDictionnary<H, C> = H extends [head: infer A extends string, ...tail: infer B extends string[]] ? ('' extends GetFirstParam<C> ? { [e in A]?: GetFirstParam<C> } : { [e in A]: GetFirstParam<C> }) & GetParamsDictionnary<B, GetOtherParam<C>> : {}
+//#endregion
 
 type ValidHeadTrad<K extends TranslateStructure> = { [E in keyof K]: E extends `$${infer Head}` ? Head : E }[keyof K];
 type ValidHeadTradLitteral<K extends TranslateStructure> = { [E in keyof K]: E extends `$${infer Head}` ? never : (K[E] extends string ? E : never) }[keyof K];
@@ -21,8 +44,12 @@ export type ConstraintParams<K extends string | unknown> = K extends string ? {
     [Property in ParamsNameTrad<K>]: string | number;
 } : never;
 
+/**
+ * Obtain all nested key
+ * - Catch special case 
+ */
 export type DeepKeys<K extends TranslateStructure> = { [E in keyof K]: E extends string ?
-    K[E] extends TranslateStructure ? `${E}.${DeepKeys<K[E]>}` : E
+    K[E] extends TranslateStructure ? (E extends SpecialCase ? GetSpecialHead<E> : `${E}.${DeepKeys<K[E]>}`) : E
     : never
 }[keyof K];
 
@@ -30,32 +57,33 @@ export type DeepValue<K extends string, G extends TranslateStructure> = K extend
     G[Head] extends TranslateStructure ? DeepValue<Tail, G[Head]> : never
     : G[K];
 
-export type ModelTranslation<T extends TranslateStructure> = { [K in keyof T]: T[K] extends TranslateStructure ? ModelTranslation<T[K]> : string };
+export type TranslationModel<T extends TranslateStructure> = { [K in keyof T]: T[K] extends TranslateStructure ? TranslationModel<T[K]> : string };
 
 export type LangFile<T> = { default: T, }
 
-export type TranslationModel<T extends TranslateStructure> = {
-    translate<K extends DeepKeys<T>, P extends ConstraintParams<DeepValue<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) : string
+export type Translate<T extends TranslateStructure> = {
+    translate<K extends DeepKeys<T>, P extends ConstraintParams<DeepValue<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]): string
 }
 
 export type TranslationDictionnary<T extends TranslateStructure> = {
-    [key: string] : TranslationModel<T>,
+    [key: string]: Translate<T>,
 }
 
 // {{((?:(?!}}).)+)}}
 const regexPattern = new RegExp(`${parserSettings.delimiterStart}((?:(?!${parserSettings.delimiterEnd}).)+)${parserSettings.delimiterEnd}`, 'g');
-const accepted = ['undefined', 'Date', 'Math']
-const safeEval = Object.getOwnPropertyNames(window).map((v) => { return accepted.includes(v) ? '' : `let ${v} = undefined;` }).join('') + ``;
+const accepted = ['undefined', 'Date', 'Math', 'eval'];
+const safeContext = () => Object.getOwnPropertyNames(window).map((v) => { return accepted.includes(v) ? '' : `let ${v} = undefined;` }).join('') + ``;
 
-function evalParameter(params: {[key: string] : any}){
+function evalParameter(params: { [key: string]: any }) {
     let parameters = '';
-    for(const key in params){
+    for (const key in params) {
         parameters += `let ${encodeURIComponent(key)} = ${JSON.stringify(params[key])};`;
     }
     return parameters;
 }
 
-export function initTranslate<T extends TranslateStructure>(translation?: T): TranslationModel<T> {
+//@TODO: Catch special case
+export function initTranslate<T extends TranslateStructure>(translation?: T): Translate<T> {
     return {
         translate<K extends DeepKeys<T>, P extends ConstraintParams<DeepValue<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) {
             const path = key.split('.');
@@ -67,26 +95,28 @@ export function initTranslate<T extends TranslateStructure>(translation?: T): Tr
             if (!translateValue) return "__INVALID_TRANSLATION__"; //TODO
             const param: P = (params as any)[0]!;
             if (param) {
-                translateValue = translateValue.replaceAll(regexPattern, (match, content, ...args) => {
+                const localContext = {};
+                translateValue = translateValue.replaceAll(regexPattern, (match, content, ..._args) => {
                     const unescapedMode = content['0'] == '-';
                     const declarativeMode = content['0'] == '@';
                     const execMode = content['0'] == '$';
-                    
-                    if (execMode){
-                        const toEval = `${safeEval}; "use strict"; ${evalParameter(param)}; ${(content as string).substring(1, content.length).replaceAll('this', '_this')}`;
-                        try{
-                            const result = (0, eval)(toEval);
+
+                    if (execMode) {
+                        const toEval = `"use strict"; ${safeContext()}; ${evalParameter(param)}; return ${(content as string).substring(1, content.length)}`;
+                        try {
+                            const result = new Function(toEval).call(localContext); //(0, eval)(toEval);
                             return result;
-                        }catch(_e){
+                        } catch (_e) {
+                            console.log(_e);
                             return 'EVAL_ERROR';
                         }
                     }
-                    
+
                     if (declarativeMode) return '';
 
                     const key = unescapedMode ? (content as string).substring(1, content.length) : content;
                     const value = (param as any)[key];
-                    if(!value) return match;
+                    if (!value) return match;
                     if (!unescapedMode) return encodeURI(value);
                     return value;
                 });

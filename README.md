@@ -12,7 +12,7 @@ const translation = {
     }
 } as const satisfies TranslateStructure;
 
-export type Model = ModelTranslation<typeof translation>;
+export type Model = TranslationModel<typeof translation>;
 
 export default translation;
 ```
