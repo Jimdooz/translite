@@ -19,10 +19,10 @@ const parserSettings = {
 type Decompose_<S> = S extends `${infer partLeft}_${infer partRight}` ? partLeft | Decompose_<partRight> : S;
 type ArrayDecompose_<S> = S extends `${infer partLeft}_${infer partRight}` ? [partLeft, ...ArrayDecompose_<partRight>] : [S];
 
-type SpecialCase = `$${string}$${string}`;
-type GetSpecialHead<T> = T extends `$${infer H}$${string}` ? H : never;
-type GetSpecialParams<T> = T extends `$${string}$${infer P}` ? Decompose_<P> : never;
-type ArraySpecialParams<T> = T extends `$${string}$${infer P}` ? ArrayDecompose_<P> : never;
+type SpecialCase = `${string}$${string}`;
+type GetSpecialHead<T> = T extends `${infer H}$${string}` ? H : never;
+type GetSpecialParams<T> = T extends `${string}$${infer P}` ? Decompose_<P> : never;
+type ArraySpecialParams<T> = T extends `${string}$${infer P}` ? ArrayDecompose_<P> : never;
 
 type GetFirstParam<T> = { [K in keyof T]: K extends `${infer partLeft}_${string}` ? partLeft : K extends string ? K : never }[keyof T];
 type GetOtherParam<T> = {
