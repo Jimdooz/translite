@@ -3,9 +3,11 @@ export type TranslateStructure = {
 } & SpecialTranslateStructure
 
 type SpecialTranslateStructure = {
-    [specialKey: SpecialCase]: {
-        [special: string]: string,
-    }
+    [specialKey: SpecialCase]: SpecialTranslateContent
+}
+
+type SpecialTranslateContent = {
+    [special: string]: string,
 }
 
 const parserSettings = {
@@ -24,10 +26,10 @@ type ArraySpecialParams<T> = T extends `$${string}$${infer P}` ? ArrayDecompose_
 
 type GetFirstParam<T> = { [K in keyof T]: K extends `${infer partLeft}_${string}` ? partLeft : K extends string ? K : never }[keyof T];
 type GetOtherParam<T> = {
-    [Property in { [K in keyof T]: K extends `${string}_${infer partRight}` ? partRight : '' }[keyof T]]: Property
+    [Property in { [K in keyof T]: K extends `${string}_${infer partRight}` ? partRight : '\0' }[keyof T]]: Property
 };
 
-type GetParamsDictionnary<H, C> = H extends [head: infer A extends string, ...tail: infer B extends string[]] ? ('' extends GetFirstParam<C> ? { [e in A]?: GetFirstParam<C> } : { [e in A]: GetFirstParam<C> }) & GetParamsDictionnary<B, GetOtherParam<C>> : {}
+type GetParamsDictionnary<H, C> = H extends [head: infer A extends string, ...tail: infer B extends string[]] ? ('\0' extends GetFirstParam<C> ? { [e in A]?: Exclude<GetFirstParam<C>, '\0'> } : { [e in A]: GetFirstParam<C> }) & GetParamsDictionnary<B, GetOtherParam<C>> : {}
 //#endregion
 
 type ValidHeadTrad<K extends TranslateStructure> = { [E in keyof K]: E extends `$${infer Head}` ? Head : E }[keyof K];
@@ -40,9 +42,14 @@ type Words<K extends string> = K extends `${infer partLeft} ${infer partRight}` 
 // type ParamsName<K extends string> = K extends `${typeof parserSettings.delimiterStart}${infer P}${typeof parserSettings.delimiterEnd}` ? P : never;
 type ParamsName<K extends string> = K extends `${typeof parserSettings.delimiterStart}${infer P}${typeof parserSettings.delimiterEnd}` ? (P extends `-${infer L}` ? L : (P extends `@${infer L}` ? L : P)) : never;
 type ParamsNameTrad<K extends string> = ParamsName<Words<K>>;
+
 export type ConstraintParams<K extends string | unknown> = K extends string ? {
     [Property in ParamsNameTrad<K>]: string | number;
 } : never;
+
+export type ConstraintParamsTuple<K extends [string, string | unknown]> = K[1] extends string ? {
+    [Property in ParamsNameTrad<K[1]>]: string | number;
+} : K[1] extends SpecialTranslateContent ? GetParamsDictionnary<ArraySpecialParams<K[0]>, K[1]> : never;
 
 /**
  * Obtain all nested key
@@ -53,9 +60,22 @@ export type DeepKeys<K extends TranslateStructure> = { [E in keyof K]: E extends
     : never
 }[keyof K];
 
+/**
+ * Obtain all nested key value
+ * - Catch special case 
+ */
+type ValidSpecialCase<K extends string, O extends TranslateStructure> = { [I in keyof O]: I extends SpecialCase ? (K extends GetSpecialHead<I> ? I : never) : never }[keyof O]
+
+type IntermediateDeepValue<K extends string, Intermediate extends TranslateStructure> =
+    ValidSpecialCase<K, Intermediate> extends never ? Intermediate[K] : Intermediate[ValidSpecialCase<K, Intermediate>];
+
 export type DeepValue<K extends string, G extends TranslateStructure> = K extends `${infer Head}.${infer Tail}` ?
     G[Head] extends TranslateStructure ? DeepValue<Tail, G[Head]> : never
-    : G[K];
+    : IntermediateDeepValue<K, G>;
+
+export type DeepValueTuple<K extends string, G extends TranslateStructure> = K extends `${infer Head}.${infer Tail}` ?
+    G[Head] extends TranslateStructure ? DeepValueTuple<Tail, G[Head]> : never
+    : [ValidSpecialCase<K, G>, IntermediateDeepValue<K, G>];
 
 export type TranslationModel<T extends TranslateStructure> = { [K in keyof T]: T[K] extends TranslateStructure ? TranslationModel<T[K]> : string };
 
@@ -82,10 +102,9 @@ function evalParameter(params: { [key: string]: any }) {
     return parameters;
 }
 
-//@TODO: Catch special case
-export function initTranslate<T extends TranslateStructure>(translation?: T): Translate<T> {
+export function initTranslate<T extends TranslateStructure>(translation?: T) {
     return {
-        translate<K extends DeepKeys<T>, P extends ConstraintParams<DeepValue<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) {
+        translate<K extends DeepKeys<T>, P extends ConstraintParamsTuple<DeepValueTuple<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) {
             const path = key.split('.');
             let deepObj: TranslateStructure = translation ?? {};
             for (let i = 0; i < path.length - 1; i++) {

@@ -10,6 +10,9 @@ async function LoadTranslation(lang: string) {
 }
 
 const translate = await LoadTranslation(lang);
-// translate("deep.complex", {
-    
-// });
+
+const translated = translate("deep.complex", {
+    gender: "female",
+    count: "1",
+    cute: "true"
+})

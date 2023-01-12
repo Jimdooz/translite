@@ -7,9 +7,13 @@ const translation = {
         translation: "Result of addition : {a} + {b} = {$ a + b }",
         plural: "{@count} shoe{$ count > 1 ? 's' : '' }",
         multiple: "{@gender} {@count} {$count > 1 ? count : 'A'} {$gender == 'male' ? 'boyfriend' : 'girlfriend'}{$count > 1 ? 's' : ''}",
-        $complex$gender_count: {
-            male_0: "A boyfriend",
-            female_0: "A female",
+        $complex$gender_count_cute: {
+            male_0: "No boyfriend",
+            female_0: "No girlfriend",
+            male_1: "A boyfriend",
+            female_1: "A girlfriend",
+            male_1_true: "A cute boyfriend",
+            female_1_true: "A cute girlfriend",
             male: "{count} boyfriends",
             female: "{count} girlfriends",
         }
