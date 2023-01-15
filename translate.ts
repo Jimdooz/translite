@@ -15,7 +15,7 @@ const parserSettings = {
     delimiterEnd: "}",
 } as const;
 
-//#region $specialcas$param1_param2_paramN
+//#region specialcas$param1_param2_paramN
 type Decompose_<S> = S extends `${infer partLeft}_${infer partRight}` ? partLeft | Decompose_<partRight> : S;
 type ArrayDecompose_<S> = S extends `${infer partLeft}_${infer partRight}` ? [partLeft, ...ArrayDecompose_<partRight>] : [S];
 
@@ -28,6 +28,7 @@ type GetFirstParam<T> = { [K in keyof T]: K extends `${infer partLeft}_${string}
 type GetOtherParam<T> = {
     [Property in { [K in keyof T]: K extends `${string}_${infer partRight}` ? partRight : '\0' }[keyof T]]: Property
 };
+type AllParam<K> = K extends `${infer partLeft}_${infer partRight}` ? [partLeft, ...AllParam<partRight>] : [K];
 
 type GetParamsDictionnary<H, C> = H extends [head: infer A extends string, ...tail: infer B extends string[]] ? ('\0' extends GetFirstParam<C> ? { [e in A]?: Exclude<GetFirstParam<C>, '\0'> } : { [e in A]: GetFirstParam<C> }) & GetParamsDictionnary<B, GetOtherParam<C>> : {}
 //#endregion
@@ -47,9 +48,28 @@ export type ConstraintParams<K extends string | unknown> = K extends string ? {
     [Property in ParamsNameTrad<K>]: string | number;
 } : never;
 
+// export type ConstraintParamsTuple<K extends [string, string | unknown]> = K[1] extends string ? {
+//     [Property in ParamsNameTrad<K[1]>]: string | number;
+// } : K[1] extends SpecialTranslateContent ? GetParamsDictionnary<ArraySpecialParams<K[0]>, K[1]> : never;
+
+/**
+ * NEW VERSION
+ */
+type Tail<T> = T extends readonly [head: infer A extends any, ...tail: infer B extends any[]] ? B : [];
+
+type DispatchValue<K extends readonly any[], V extends readonly any[]> = K extends readonly [head: infer A extends string, ...tail: infer B extends string[]] ?
+    (V[0] extends '*' ? { [i in A]?: undefined } : (V[0] extends undefined ? { [i in A]?: undefined } : { [i in A]: V[0] })) & DispatchValue<B, Tail<V>>
+    : {};
+
+type AllValues<K extends readonly any[], V> = {
+    [I in keyof V]: DispatchValue<K, AllParam<I>>
+}
+
+type UnionValues<T> = T[keyof T];
+
 export type ConstraintParamsTuple<K extends [string, string | unknown]> = K[1] extends string ? {
     [Property in ParamsNameTrad<K[1]>]: string | number;
-} : K[1] extends SpecialTranslateContent ? GetParamsDictionnary<ArraySpecialParams<K[0]>, K[1]> : never;
+} : K[1] extends SpecialTranslateContent ? UnionValues<AllValues<ArraySpecialParams<K[0]>, K[1]>> : never;
 
 /**
  * Obtain all nested key

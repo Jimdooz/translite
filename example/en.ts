@@ -16,6 +16,7 @@ const translation = {
             female_1_true: "A cute girlfriend",
             male: "{count} boyfriends",
             female: "{count} girlfriends",
+            none: "Nothing",
         }
     },
 } as const satisfies TranslateStructure;
