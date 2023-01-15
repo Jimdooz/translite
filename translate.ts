@@ -55,13 +55,13 @@ export type ConstraintParams<K extends string | unknown> = K extends string ? {
 /**
  * NEW VERSION
  */
-type Tail<T> = T extends readonly [head: infer A extends any, ...tail: infer B extends any[]] ? B : [];
+type Tail<T> = T extends [head: infer A extends any, ...tail: infer B extends any[]] ? B : [];
 
-type DispatchValue<K extends readonly any[], V extends readonly any[]> = K extends readonly [head: infer A extends string, ...tail: infer B extends string[]] ?
-    (V[0] extends '*' ? { [i in A]?: undefined } : (V[0] extends undefined ? { [i in A]?: undefined } : { [i in A]: V[0] })) & DispatchValue<B, Tail<V>>
+type DispatchValue<K extends any[], V extends any[]> = K extends [head: infer A extends string, ...tail: infer B extends string[]] ?
+    (V[0] extends '*' ? { [i in A]?: Omit<string, never> } : (V[0] extends undefined ? { [i in A]?: Omit<string, never> } : { [i in A]: V[0] })) & DispatchValue<B, Tail<V>>
     : {};
 
-type AllValues<K extends readonly any[], V> = {
+type AllValues<K extends any[], V> = {
     [I in keyof V]: DispatchValue<K, AllParam<I>>
 }
 
@@ -130,9 +130,61 @@ export function initTranslate<T extends TranslateStructure>(translation?: T) {
             for (let i = 0; i < path.length - 1; i++) {
                 deepObj = deepObj[path[i]] as TranslateStructure;
             }
-            let translateValue = deepObj[path.at(-1) ?? ''] as string;
-            if (!translateValue) return "__INVALID_TRANSLATION__"; //TODO
+
+            const rawKeys = Object.keys(deepObj);
+            const sanitizeKeys = Object.keys(deepObj).map((value, index) => { return value.split('$')[0] });
+            const specialKeys = Object.keys(deepObj).map((value, index) => { return rawKeys[index] != sanitizeKeys[index] });
+            const wantedKey = path.at(-1) ?? '';
+
+            const indexFound = sanitizeKeys.indexOf(wantedKey);
+
+            const translateValueRaw = deepObj[rawKeys[indexFound]];
+            if (!translateValueRaw) return "__INVALID_TRANSLATION__"; //TODO
+
             const param: P = (params as any)[0]!;
+
+            // console.log(translateValue);
+            let translateValue = translateValueRaw as string;
+            //Special case
+            if(specialKeys[indexFound]){
+                translateValue = ''; //Reset value
+                //Create score
+                const scores : {[key: string] : number} = {};
+                for (const scoreKey in translateValueRaw as SpecialTranslateContent){
+                    const element = scoreKey.split('_');
+                    let score = 0;
+                    for(let i = 0; i < element.length; i++) score += element[i] == '*' ? 0 : 1;
+                    scores[scoreKey] = score;
+                }
+
+                const flatKeys = Object.keys(translateValueRaw as SpecialTranslateContent).sort((a, b) => {
+                    return scores[b] - scores[a];
+                });
+
+                const paramDefinition = rawKeys[indexFound].split('$')[1].split('_');
+
+                for(const propose of flatKeys){
+                    const proposeParam = propose.split('_');
+                    let valid = true;
+                    for(const paramKey in paramDefinition){
+                        const paramElement = paramDefinition[paramKey];
+                        const paramValue = (param as any)?.[paramElement];
+                        // console.log(propose, paramKey, paramElement, '|', paramValue, proposeParam[paramKey]);
+                        if (!proposeParam[paramKey] || proposeParam[paramKey] == '*' || proposeParam[paramKey] == paramValue) continue;
+                        valid = false; break;
+                    }
+                    if (valid) {
+                        translateValue = (translateValueRaw as SpecialTranslateContent)[propose];
+                        break;
+                    }
+                }
+                // console.log(flatKeys, param, paramDefinition, translateValue);
+
+                if (!translateValue) return "__INVALID_TRANSLATION__"; //TODO
+            }
+
+            console.log(translateValue);
+
             if (param) {
                 const localContext = {};
                 translateValue = translateValue.replaceAll(regexPattern, (match, content, ..._args) => {
