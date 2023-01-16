@@ -7,16 +7,12 @@ const translation = {
         translation: "Result of addition : {a} + {b} = {$ a + b }",
         plural: "{@count} shoe{$ count > 1 ? 's' : '' }",
         multiple: "{@gender} {@count} {$count > 1 ? count : 'A'} {$gender == 'male' ? 'boyfriend' : 'girlfriend'}{$count > 1 ? 's' : ''}",
-        complex$gender_count_cute: {
-            male_0: "No boyfriend",
-            female_0: "No girlfriend",
-            male_1: "A boyfriend",
+        // https://www.i18next.com/translation-function/context equivalent
+        friend$gender_count: {
+            male_1 : "A boyfriend",
             female_1: "A girlfriend",
-            male_1_true: "A cute boyfriend",
-            female_1_true: "A cute girlfriend",
-            male: "{count} boyfriends",
-            female: "{count} girlfriends",
-            none: "Nothing",
+            "male_*": "{count} boyfriends",
+            "female_*": "{count} girlfriends",
         }
     },
 } as const satisfies TranslateStructure;

@@ -48,17 +48,15 @@ export type ConstraintParams<K extends string | unknown> = K extends string ? {
     [Property in ParamsNameTrad<K>]: string | number;
 } : never;
 
-// export type ConstraintParamsTuple<K extends [string, string | unknown]> = K[1] extends string ? {
-//     [Property in ParamsNameTrad<K[1]>]: string | number;
-// } : K[1] extends SpecialTranslateContent ? GetParamsDictionnary<ArraySpecialParams<K[0]>, K[1]> : never;
+type NumberOrString<T extends string> = T extends `${infer N extends number}` ? N | T : T;
 
 /**
- * NEW VERSION
+ * Special case
  */
 type Tail<T> = T extends [head: infer A extends any, ...tail: infer B extends any[]] ? B : [];
 
 type DispatchValue<K extends any[], V extends any[]> = K extends [head: infer A extends string, ...tail: infer B extends string[]] ?
-    (V[0] extends '*' ? { [i in A]?: Omit<string, never> } : (V[0] extends undefined ? { [i in A]?: Omit<string, never> } : { [i in A]: V[0] })) & DispatchValue<B, Tail<V>>
+    (V[0] extends '*' ? { [i in A]: Omit<string | number, never> } : (V[0] extends undefined ? { [i in A]?: never } : { [i in A]: NumberOrString<V[0]> })) & DispatchValue<B, Tail<V>>
     : {};
 
 type AllValues<K extends any[], V> = {
@@ -142,26 +140,24 @@ export function initTranslate<T extends TranslateStructure>(translation?: T) {
             if (!translateValueRaw) return "__INVALID_TRANSLATION__"; //TODO
 
             const param: P = (params as any)[0]!;
-
-            // console.log(translateValue);
+            
             let translateValue = translateValueRaw as string;
             //Special case
             if(specialKeys[indexFound]){
                 translateValue = ''; //Reset value
+                const paramDefinition = rawKeys[indexFound].split('$')[1].split('_');
                 //Create score
                 const scores : {[key: string] : number} = {};
                 for (const scoreKey in translateValueRaw as SpecialTranslateContent){
                     const element = scoreKey.split('_');
                     let score = 0;
-                    for(let i = 0; i < element.length; i++) score += element[i] == '*' ? 0 : 1;
+                    for (let i = 0; i < paramDefinition.length; i++) score += element[i] == '*' ? 0 : 1;
                     scores[scoreKey] = score;
                 }
 
                 const flatKeys = Object.keys(translateValueRaw as SpecialTranslateContent).sort((a, b) => {
                     return scores[b] - scores[a];
                 });
-
-                const paramDefinition = rawKeys[indexFound].split('$')[1].split('_');
 
                 for(const propose of flatKeys){
                     const proposeParam = propose.split('_');
@@ -170,7 +166,7 @@ export function initTranslate<T extends TranslateStructure>(translation?: T) {
                         const paramElement = paramDefinition[paramKey];
                         const paramValue = (param as any)?.[paramElement];
                         // console.log(propose, paramKey, paramElement, '|', paramValue, proposeParam[paramKey]);
-                        if (!proposeParam[paramKey] || proposeParam[paramKey] == '*' || proposeParam[paramKey] == paramValue) continue;
+                        if (proposeParam[paramKey] == '*' || proposeParam[paramKey] == paramValue) continue;
                         valid = false; break;
                     }
                     if (valid) {
@@ -182,8 +178,6 @@ export function initTranslate<T extends TranslateStructure>(translation?: T) {
 
                 if (!translateValue) return "__INVALID_TRANSLATION__"; //TODO
             }
-
-            console.log(translateValue);
 
             if (param) {
                 const localContext = {};
@@ -212,6 +206,7 @@ export function initTranslate<T extends TranslateStructure>(translation?: T) {
                     return value;
                 });
             }
+            
             return translateValue.trim();
         }
     };
