@@ -1,51 +1,39 @@
-# Quick Translation
+# QuickTranslate 🌎💬
+
+QuickTranslate is a simple and easy to use translation library for Deno. It's designed to make it easy to translate your application with minimal setup and configuration.
+
+## Features 📋
+Simple and easy to use API
+- Auto-completion with TypeScript
+- Variable substitution
+- Dynamic translation
+- Contextualization
+
+## Usage 🚀
+
+Define your main language format that serve to be the reference or the model
 
 ```ts
-import type { TranslateStructure, ModelTranslation } from "@translate/mod.ts";
+import type { TranslateStructure, TranslationModel } from "@qtranslate/mod.ts";
 
+//Define your keys
 const translation = {
-    hello: "Hello !",
-    presentation: "My name is {-firstname} {lastname}",
-    deep: {
-        translation: "Result of addition : {a} + {b} = {$ a + b }",
-        plural: "{@count} shoe{$ count > 1 ? 's' : '' }",
-    }
-} as const satisfies TranslateStructure;
+    hello: "Hello !"
+} as const satifies TranslateStructure;
 
+//Define the model for other lang
 export type Model = TranslationModel<typeof translation>;
 
 export default translation;
 ```
 
-```ts
-import type {Model} from "./en.ts";
-
-export default {
-    hello: "Bonjour !",
-    presentation: "Bonjour je suis {-firstname} {lastname}",
-    deep: {
-        translation: "Résultat de l'addition : {a} + {b} = {$ a + b}",
-        plural: "{@count} chaussure{$ count > 1 ? 's' : '' }",
-    }
-} as const satisfies Model;
-```
+Next you can use it to your main file
 
 ```ts
-import { initTranslate, LangFile } from "@translate/mod.ts"
-import mainLang from "./translation/en.ts"
+import type { initTranslate } from "@qtranslate/mod.ts";
+import EN from "./en.ts"
 
-const lang = "fr";
-const { default: translation }: LangFile<typeof mainLang> = await import(`./translation/${lang}.ts`);
-const { translate } = initTranslate(translation);
+const { t } = initTranslate(EN);
 
-const translate = await LoadTranslation(lang);
-
-//Bonjour je suis <i>John</i> Doe
-translate("presentation", { firstname: "<i>John</i>", lastname: "Doe" });
- // "Résultat de l'addition : 5 + 10 = 15"
-translate("deep.translation", { a: 5, b: 10 });
-// chaussure
-translate("deep.plural", { count: 0});
-// chaussures
-translate("deep.plural", { count: 10});
+console.log(t('hello')); //Hello !
 ```

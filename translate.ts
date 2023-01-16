@@ -95,7 +95,7 @@ export type DeepValueTuple<K extends string, G extends TranslateStructure> = K e
     G[Head] extends TranslateStructure ? DeepValueTuple<Tail, G[Head]> : never
     : [ValidSpecialCase<K, G>, IntermediateDeepValue<K, G>];
 
-export type TranslationModel<T extends TranslateStructure> = { [K in keyof T]: T[K] extends TranslateStructure ? TranslationModel<T[K]> : string };
+export type TranslationModel<T extends TranslateStructure> = { [K in keyof T]: T[K] extends TranslateStructure ? TranslationModel<T[K]> : T[K] | (string & {}) };
 
 export type LangFile<T> = { default: T, }
 
@@ -120,9 +120,14 @@ function evalParameter(params: { [key: string]: any }) {
     return parameters;
 }
 
-export function initTranslate<T extends TranslateStructure>(translation?: T) {
+type TranslateOptions = {
+    fallback?: string | ((key: string) => void | string)
+}
+
+export function initTranslate<T extends TranslateStructure>(translation: T, options?: TranslateOptions) {
+
     return {
-        translate<K extends DeepKeys<T>, P extends ConstraintParamsTuple<DeepValueTuple<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) {
+        t<K extends DeepKeys<T>, P extends ConstraintParamsTuple<DeepValueTuple<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) {
             const path = key.split('.');
             let deepObj: TranslateStructure = translation ?? {};
             for (let i = 0; i < path.length - 1; i++) {
@@ -137,7 +142,13 @@ export function initTranslate<T extends TranslateStructure>(translation?: T) {
             const indexFound = sanitizeKeys.indexOf(wantedKey);
 
             const translateValueRaw = deepObj[rawKeys[indexFound]];
-            if (!translateValueRaw) return "__INVALID_TRANSLATION__"; //TODO
+            if (!translateValueRaw) {
+                if(options?.fallback){
+                    if(typeof options.fallback == "string") return options.fallback;
+                    else return options.fallback(key);
+                }
+                return "";
+            }
 
             const param: P = (params as any)[0]!;
             
