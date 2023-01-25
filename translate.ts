@@ -100,8 +100,10 @@ export type TranslationModel<T extends TranslateStructure> = { [K in keyof T]: T
 type LangFile<T> = { default: T, }
 
 type Translate<T extends TranslateStructure> = {
-    t<K extends DeepKeys<T>, P extends ConstraintParams<DeepValue<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]): string
+    t: TranslateFunction<T>,
 }
+
+export type TranslateFunction<T extends TranslateStructure> = <K extends DeepKeys<T>, P extends ConstraintParamsTuple<DeepValueTuple<K, T>>>(key: K, ...params: P extends Record<string, never> ? [] : [P]) => string;
 
 type TranslationDictionnary<T extends TranslateStructure> = {
     [key: string]: Translate<T>,
@@ -143,23 +145,23 @@ export function initTranslate<T extends TranslateStructure>(translation: T, opti
 
             const translateValueRaw = deepObj[rawKeys[indexFound]];
             if (!translateValueRaw) {
-                if(options?.fallback){
-                    if(typeof options.fallback == "string") return options.fallback;
+                if (options?.fallback) {
+                    if (typeof options.fallback == "string") return options.fallback;
                     else return options.fallback(key);
                 }
                 return "";
             }
 
             const param: P = (params as any)[0]!;
-            
+
             let translateValue = translateValueRaw as string;
             //Special case
-            if(specialKeys[indexFound]){
+            if (specialKeys[indexFound]) {
                 translateValue = ''; //Reset value
                 const paramDefinition = rawKeys[indexFound].split('$')[1].split('_');
                 //Create score
-                const scores : {[key: string] : number} = {};
-                for (const scoreKey in translateValueRaw as SpecialTranslateContent){
+                const scores: { [key: string]: number } = {};
+                for (const scoreKey in translateValueRaw as SpecialTranslateContent) {
                     const element = scoreKey.split('_');
                     let score = 0;
                     for (let i = 0; i < paramDefinition.length; i++) score += element[i] == '*' ? 0 : 1;
@@ -170,10 +172,10 @@ export function initTranslate<T extends TranslateStructure>(translation: T, opti
                     return scores[b] - scores[a];
                 });
 
-                for(const propose of flatKeys){
+                for (const propose of flatKeys) {
                     const proposeParam = propose.split('_');
                     let valid = true;
-                    for(const paramKey in paramDefinition){
+                    for (const paramKey in paramDefinition) {
                         const paramElement = paramDefinition[paramKey];
                         const paramValue = (param as any)?.[paramElement];
                         // console.log(propose, paramKey, paramElement, '|', paramValue, proposeParam[paramKey]);
@@ -217,7 +219,7 @@ export function initTranslate<T extends TranslateStructure>(translation: T, opti
                     return value;
                 });
             }
-            
+
             return translateValue.trim();
         }
     };
